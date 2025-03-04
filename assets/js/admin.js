@@ -71,7 +71,7 @@
                 var categoryId = $(this).val();
                 
                 // Reset subcategory dropdown
-                subcategorySelect.html('<option value="">-- ' + (categoryId ? wc_marktplaats.select_subcategory_text : wc_marktplaats.select_category_first_text) + ' --</option>');
+                subcategorySelect.html('<option value="">-- ' + (categoryId ? 'Select Subcategory' : 'First Select Category') + ' --</option>');
                 
                 if (categoryId) {
                     // Show spinner
