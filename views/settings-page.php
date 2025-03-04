@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 ?>
-<div class="wrap">
+<div class="wrap wc-marktplaats-settings">
     <h1><?php _e('WooCommerce to Marktplaats Integration', 'wc-marktplaats'); ?></h1>
     
     <form method="post" action="options.php">
