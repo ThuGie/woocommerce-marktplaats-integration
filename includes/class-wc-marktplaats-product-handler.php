@@ -109,11 +109,18 @@ class WC_Marktplaats_Product_Handler {
         $description_prefix = get_option('wc_marktplaats_default_description_prefix', '');
         $description_suffix = get_option('wc_marktplaats_default_description_suffix', '');
         
+        // Process description - remove HTML tags
+        $description = $product->get_description();
+        if (empty($description)) {
+            $description = $product->get_short_description();
+        }
+        $description = strip_tags($description);
+        
         // Basic product data
         $data = array(
             'title' => $product->get_name(),
             'description' => $description_prefix . "\n\n" . 
-                             $product->get_description() . "\n\n" . 
+                             $description . "\n\n" . 
                              $description_suffix,
             'price' => $product->get_price(),
             'shipping' => get_option('wc_marktplaats_default_shipping', 'both'),
@@ -171,14 +178,14 @@ class WC_Marktplaats_Product_Handler {
     }
     
     /**
-     * Implementation guide for browser automation (pseudo-code)
+     * Implementation guide for browser automation for Marktplaats.nl
      * 
-     * This method outlines how the actual browser automation would be implemented
+     * This method provides detailed steps for implementing web automation
      * using a library like PHP-WebDriver with Selenium
      */
     private function browser_automation_guide() {
         /*
-        // This is pseudo-code to illustrate the process
+        // This is a detailed guide for implementing browser automation with Marktplaats.nl
         
         // 1. Set up WebDriver
         $capabilities = DesiredCapabilities::chrome();
@@ -189,60 +196,187 @@ class WC_Marktplaats_Product_Handler {
         
         try {
             // 2. Navigate to Marktplaats login page
-            $driver->get('https://www.marktplaats.nl/account/login.html');
+            $driver->get('https://www.marktplaats.nl/identity/v2/login');
             
-            // 3. Log in
+            // 3. Accept cookies if dialog appears
+            try {
+                $cookieAcceptButton = $driver->findElement(WebDriverBy::xpath("//button[contains(text(), 'Accepteren')]"));
+                if ($cookieAcceptButton) {
+                    $cookieAcceptButton->click();
+                    // Wait for dialog to disappear
+                    $driver->wait(10)->until(WebDriverExpectedCondition::invisibilityOfElementLocated(
+                        WebDriverBy::xpath("//button[contains(text(), 'Accepteren')]")
+                    ));
+                }
+            } catch (Exception $e) {
+                // Cookie dialog might not appear, so continue
+            }
+            
+            // 4. Log in
             $driver->findElement(WebDriverBy::id('email'))->sendKeys($this->username);
             $driver->findElement(WebDriverBy::id('password'))->sendKeys($this->password);
-            $driver->findElement(WebDriverBy::id('login-button'))->click();
-            $driver->wait()->until(WebDriverExpectedCondition::urlContains('dashboard'));
+            $driver->findElement(WebDriverBy::xpath("//button[@type='submit']"))->click();
             
-            // 4. Navigate to place ad page
-            $driver->get('https://www.marktplaats.nl/plaats');
+            // Wait for login to complete
+            $driver->wait()->until(WebDriverExpectedCondition::urlContains('account'));
             
-            // 5. Fill in form fields
-            $driver->findElement(WebDriverBy::id('title'))->sendKeys($this->product_title);
-            $driver->findElement(WebDriverBy::id('description'))->sendKeys($this->product_description);
-            $driver->findElement(WebDriverBy::id('price'))->sendKeys($this->product_price);
+            // 5. Navigate to place ad page
+            $driver->get('https://link.marktplaats.nl/link/placead/start');
             
             // 6. Select category
-            $driver->findElement(WebDriverBy::className('category-selector'))->click();
-            $driver->findElement(WebDriverBy::xpath("//a[contains(@data-category-id, '{$this->category_id}')]"))->click();
+            // Wait for category selection page to load
+            $driver->wait()->until(WebDriverExpectedCondition::presenceOfElementLocated(
+                WebDriverBy::xpath("//h1[contains(text(), 'Kies een categorie')]")
+            ));
             
-            // 7. Select subcategory if needed
+            // Find and click the main category
+            $mainCategoryElement = $driver->findElement(
+                WebDriverBy::xpath("//a[contains(@href, '/cp/" . $this->category_id . "/')]")
+            );
+            $mainCategoryElement->click();
+            
+            // Wait for subcategory selection to appear if needed
             if (!empty($this->subcategory_id)) {
-                $driver->findElement(WebDriverBy::xpath("//a[contains(@data-subcategory-id, '{$this->subcategory_id}')]"))->click();
+                $driver->wait()->until(WebDriverExpectedCondition::presenceOfElementLocated(
+                    WebDriverBy::xpath("//a[contains(@href, '" . $this->subcategory_id . "')]")
+                ));
+                
+                $subcategoryElement = $driver->findElement(
+                    WebDriverBy::xpath("//a[contains(@href, '" . $this->subcategory_id . "')]")
+                );
+                $subcategoryElement->click();
+            }
+            
+            // Wait for the ad form to load
+            $driver->wait()->until(WebDriverExpectedCondition::presenceOfElementLocated(
+                WebDriverBy::name("title")
+            ));
+            
+            // 7. Fill in form fields
+            // Title
+            $driver->findElement(WebDriverBy::name("title"))->sendKeys($this->product_title);
+            
+            // Description
+            $driver->findElement(WebDriverBy::name("description"))->sendKeys($this->product_description);
+            
+            // Price
+            $driver->findElement(WebDriverBy::name("priceValue"))->sendKeys($this->product_price);
+            
+            // Shipping options
+            switch ($this->shipping_option) {
+                case 'pickup':
+                    $driver->findElement(WebDriverBy::xpath("//input[@value='PICKUP_ONLY']"))->click();
+                    break;
+                case 'shipping':
+                    $driver->findElement(WebDriverBy::xpath("//input[@value='SHIPPING_ONLY']"))->click();
+                    break;
+                case 'both':
+                default:
+                    $driver->findElement(WebDriverBy::xpath("//input[@value='PICKUP_AND_SHIPPING']"))->click();
+                    break;
             }
             
             // 8. Upload images
-            foreach ($this->product_images as $image_path) {
-                $driver->findElement(WebDriverBy::id('image-upload'))->sendKeys($image_path);
-                // Wait for upload to complete
-                $driver->wait()->until(WebDriverExpectedCondition::visibilityOfElementLocated(
-                    WebDriverBy::className('upload-complete')
+            foreach ($this->product_images as $index => $image_path) {
+                // Convert URL to local file
+                $temp_file = $this->download_image_to_temp($image_path);
+                
+                if ($index === 0) {
+                    // First image might have a different selector
+                    $driver->findElement(WebDriverBy::xpath("//input[@type='file']"))->sendKeys($temp_file);
+                } else {
+                    // Additional images might need to click an "Add image" button first
+                    try {
+                        $driver->findElement(WebDriverBy::xpath("//button[contains(text(), 'Voeg foto toe')]"))->click();
+                        $driver->findElement(WebDriverBy::xpath("//input[@type='file']"))->sendKeys($temp_file);
+                    } catch (Exception $e) {
+                        // If the button is not found, try the direct approach
+                        $driver->findElement(WebDriverBy::xpath("//input[@type='file']"))->sendKeys($temp_file);
+                    }
+                }
+                
+                // Wait for image to upload
+                $driver->wait(30)->until(WebDriverExpectedCondition::presenceOfElementLocated(
+                    WebDriverBy::xpath("//div[contains(@class, 'thumbnail')]")
                 ));
+                
+                // Clean up temp file
+                if (file_exists($temp_file)) {
+                    unlink($temp_file);
+                }
             }
             
             // 9. Submit form
-            $driver->findElement(WebDriverBy::id('submit-button'))->click();
+            $driver->findElement(WebDriverBy::xpath("//button[@type='submit']"))->click();
             
             // 10. Wait for completion and get the listing URL
-            $driver->wait()->until(WebDriverExpectedCondition::urlContains('/v/'));
+            $driver->wait(60)->until(WebDriverExpectedCondition::urlContains('/v/'));
             $listing_url = $driver->getCurrentURL();
             
             // 11. Extract the listing ID from the URL
-            if (preg_match('/\/v\/[^\/]+\/(\d+)/', $listing_url, $matches)) {
+            $listing_id = '';
+            if (preg_match('/\/v\/[^\/]+\/([^\/]+)/', $listing_url, $matches)) {
                 $listing_id = $matches[1];
+            } else {
+                // Alternative ID extraction as fallback
+                $listing_id = 'MP' . time();
             }
             
             return array(
                 'id' => $listing_id,
                 'url' => $listing_url
             );
+        } catch (Exception $e) {
+            return new WP_Error('automation_error', $e->getMessage());
         } finally {
             // Always close the browser
             $driver->quit();
         }
         */
+    }
+    
+    /**
+     * Download image from URL to temporary file
+     * 
+     * This is needed because WebDriver requires local file paths for file uploads
+     */
+    private function download_image_to_temp($image_url) {
+        $upload_dir = wp_upload_dir();
+        $temp_dir = $upload_dir['basedir'] . '/wc-marktplaats/temp';
+        
+        // Create temp directory if it doesn't exist
+        if (!file_exists($temp_dir)) {
+            wp_mkdir_p($temp_dir);
+        }
+        
+        // Generate a unique filename
+        $filename = 'temp-' . md5($image_url . time()) . '.jpg';
+        $temp_file = $temp_dir . '/' . $filename;
+        
+        // Download image
+        $image_data = file_get_contents($image_url);
+        if ($image_data) {
+            file_put_contents($temp_file, $image_data);
+            return $temp_file;
+        }
+        
+        return '';
+    }
+    
+    /**
+     * Create new implementation of the real browser automation
+     * 
+     * This method would be implemented with the actual automation logic
+     * based on the guide above. It would be called from post_product_to_marktplaats
+     * instead of simulate_marktplaats_post.
+     */
+    private function real_marktplaats_post($product_id, $product_data, $category_info) {
+        // To implement the actual browser automation:
+        // 1. Install PHP-WebDriver and set up Selenium WebDriver
+        // 2. Copy the code from browser_automation_guide() and adapt it
+        // 3. Replace simulate_marktplaats_post() calls with this method
+        
+        // For now, fall back to simulation
+        return $this->simulate_marktplaats_post($product_id, $product_data, $category_info);
     }
 }
