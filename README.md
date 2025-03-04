@@ -1,6 +1,6 @@
 # WooCommerce to Marktplaats Integration
 
-This WordPress plugin allows you to automatically post your WooCommerce products to Marktplaats.nl.
+This WordPress plugin allows you to automatically post your WooCommerce products to Marktplaats.nl through web automation.
 
 ## Features
 
@@ -41,39 +41,13 @@ You can post products to Marktplaats in several ways:
 - **Products List**: Use the "Post to Marktplaats" action link in the products list
 - **Bulk Actions**: Select multiple products and use the "Post to Marktplaats" bulk action
 
-## Integration Methods
+## Web Automation Implementation
 
-This plugin offers two methods of integration with Marktplaats.nl:
+This plugin uses web automation to interact with Marktplaats.nl since there is no publicly available API. In a production environment, you would need to implement the actual browser automation functionality. There are several options:
 
-### 1. Web Automation (Default)
-
-The default method uses web automation to interact with Marktplaats.nl through their website. This method:
-
-- Requires no additional API access
-- Works for any Marktplaats user
-- May be less reliable due to website changes
-
-### 2. Official API Integration (Optional)
-
-Marktplaats.nl offers an official API which can be used for more reliable integration. This method:
-
-- Requires registration as a Marktplaats API partner
-- Provides more stable integration
-- Follows official API standards (OAuth 2.0)
-
-To use the API integration:
-
-1. Register as a developer/partner with Marktplaats
-2. Obtain API credentials (client ID and client secret)
-3. Update the plugin settings with your API credentials
-
-For more information on the Marktplaats API:
-- API Documentation: https://api.marktplaats.nl/docs/v1/index.html
-- GitHub Repository: https://github.com/ecg-marktplaats/marktplaats-api
-
-## Customization
-
-### Web Automation Implementation
+1. **PHP-WebDriver with Selenium**: Requires a Selenium server
+2. **Puppeteer via Node.js bridge**: Requires Node.js
+3. **Chrome extension**: A companion extension to handle the automation
 
 To implement the actual browser automation:
 
@@ -81,13 +55,12 @@ To implement the actual browser automation:
 2. Replace the `simulate_marktplaats_post()` method with actual implementation
 3. Use the provided `browser_automation_guide()` method as a reference
 
-### API Implementation
+### Category Scraping
 
-To implement the API integration:
+The category scraping functionality might need adjustments based on Marktplaats.nl's HTML structure:
 
-1. Create a new `class-wc-marktplaats-api-handler.php` file
-2. Implement OAuth 2.0 authentication
-3. Use the API endpoints for categories, advertisements, and users
+1. Edit the `class-wc-marktplaats-scraper.php` file
+2. Adjust the XPath expressions in `fetch_categories()` and `fetch_subcategories()` methods
 
 ## License
 
